@@ -3,6 +3,19 @@
   "displayName": "ClassPrefixer",
   "description": "Adds specified prefix to every class in specified class string",
   "version": "1.0.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jjachowski/class-prefixer"
+  },
+  "keywords": [
+    "className",
+    "React",
+    "prefix",
+    "JSX",
+    "TSX",
+    "Tailwind"
+  ],
+  "license": "MIT",
   "publisher": "Jakub Jachowski",
   "icon": "icon.png",
   "engines": {

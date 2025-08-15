@@ -3,6 +3,7 @@
   "displayName": "ClassPrefixer",
   "description": "Adds specified prefix to every class in specified  class string",
   "version": "0.0.1",
+  "publisher": "Jakub Jachowski",
   "engines": {
     "vscode": "^1.103.0"
   },

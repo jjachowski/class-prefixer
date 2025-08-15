@@ -66,39 +66,7 @@ function isFileSupported(fileName: string): boolean {
   );
 }
 
-// // Build patterns from wildcard attribute names like "*ClassName"
-// function buildPatternsFromCustom(config: {
-//   customPatterns: string[];
-// }): RegExp[] {
-//   const patterns: RegExp[] = [
-//     // keep HTML class
-//     /\sclass\s*=\s*["']([^"']*)/g,
-//   ];
-
-//   const escapeRegExp = (s: string) => s.replace(/[\\^$.*+?()[```{}|]/g, '\\$&');
-
-//   const toNameRegex = (wild: string) =>
-//     // turn "*" into [\w$-]* and escape the rest
-//     wild.split('*').map(escapeRegExp).join('[\\w$-]*');
-
-//   // Use defaults if nothing configured
-//   const names = config.customPatterns?.length
-//     ? config.customPatterns
-//     : ['className', '*ClassName'];
-
-//   // De-dup to avoid double-processing
-//   Array.from(new Set(names)).forEach((wild) => {
-//     const nameRegex = toNameRegex(wild); // e.g. "*ClassName" -> [\w$-]*ClassName
-//     // Non-capturing group for the attribute name so the ONLY capture group is the value
-//     const attr = `(?:${nameRegex})`;
-
-//     // Matches: attr="...", attr='...', attr=`...`, and attr={...} (simple way)
-//     patterns.push(new RegExp(`${attr}\\s*=\\s*["'\`{]([^"'\\\`}]*)`, 'g'));
-//   });
-
-//   return patterns;
-// }
-
+// Build patterns from wildcard attribute names like "*ClassName" (direct quoted values only)
 function buildPatternsFromCustom(config: {
   customPatterns: string[];
 }): RegExp[] {
@@ -106,46 +74,38 @@ function buildPatternsFromCustom(config: {
 
   const escapeRegExp = (s: string) => s.replace(/[\\^$.*+?()[```{}|]/g, '\\$&');
   const toNameRegex = (wild: string) =>
+    // turn "*" into [\w$-]* and escape the rest
     wild.split('*').map(escapeRegExp).join('[\\w$-]*');
 
+  // Only custom names here; "className" is handled in buildPatterns base
   const names = config.customPatterns?.length
     ? config.customPatterns
-    : ['className', '*ClassName'];
+    : ['*ClassName'];
 
   Array.from(new Set(names)).forEach((wild) => {
-    const nameRegex = toNameRegex(wild);
+    const nameRegex = toNameRegex(wild); // e.g. "*ClassName" -> [\w$-]*ClassName
     const attr = `(?:${nameRegex})`;
-    patterns.push(new RegExp(`${attr}\\s*=\\s*["'\`{]([^"'\\\`}]*)`, 'g'));
+
+    // Direct quoted attributes only (attr="..."/'...'/`...`)
+    patterns.push(new RegExp(`${attr}\\s*=\\s*["'\`]([^"'\`]*)["'\`]`, 'g'));
   });
 
   return patterns;
 }
 
-// Build regex patterns from configuration
 function buildPatterns(config: ClassPrefixerConfig): RegExp[] {
   const patterns: RegExp[] = [
-    // Default patterns for className and class
+    // Default: className="..."/'...'/`...`
     /className\s*=\s*["'`]([^"'`]*?)["'`]/g,
-    /className\s*=\s*\{["'`]([^"'`]*?)["'`]\}/g,
-    /className\s*=\s*\{`([^`]*?)`\}/g,
   ];
 
   if (config.useRegex) {
-    // Use regex patterns directly
+    // User-provided regex attribute names for direct quoted values
     config.customRegexPatterns.forEach((pattern) => {
       try {
-        // Create regex for attribute="value" format
-        const regex = new RegExp(
-          `(${pattern})\\s*=\\s*["'\`]([^"'\`]*?)["'\`]`,
-          'g'
+        patterns.push(
+          new RegExp(`(?:${pattern})\\s*=\\s*["'\`]([^"'\`]*)["'\`]`, 'g')
         );
-        patterns.push(regex);
-        // Also support {`...`} and {'...'} formats for JSX
-        const regexJsx = new RegExp(
-          `(${pattern})\\s*=\\s*\\{["'\`]([^"'\`]*?)["'\`]\\}`,
-          'g'
-        );
-        patterns.push(regexJsx);
       } catch (e) {
         console.error(`Invalid regex pattern: ${pattern}`, e);
         vscode.window.showWarningMessage(
@@ -154,11 +114,227 @@ function buildPatterns(config: ClassPrefixerConfig): RegExp[] {
       }
     });
   } else {
-    const xzd = buildPatternsFromCustom(config);
-    patterns.push(...xzd);
+    patterns.push(...buildPatternsFromCustom(config));
   }
 
   return patterns;
+}
+
+// Reusable escape for wildcard conversion
+const escapeRegExp = (s: string) => s.replace(/[\\^$.*+?()[```{}|]/g, '\\$&');
+
+// Build one alternation regex for attribute names (default + custom)
+function buildAttrNameAlternation(config: ClassPrefixerConfig): string {
+  const parts: string[] = ['className']; // always include className
+
+  if (config.useRegex) {
+    // Use provided regex as-is
+    parts.push(...config.customRegexPatterns.filter(Boolean));
+  } else {
+    const toNameRegex = (wild: string) =>
+      wild.split('*').map(escapeRegExp).join('[\\w$-]*');
+
+    const names = config.customPatterns?.length
+      ? config.customPatterns
+      : ['*ClassName'];
+    parts.push(...names.map(toNameRegex));
+  }
+
+  // De-dup and build alternation
+  const unique = Array.from(new Set(parts));
+  return `(?:${unique.join('|')})`;
+}
+
+// Find the index of the matching closing '}' starting at openIndex (which points to '{')
+function findMatchingBrace(source: string, openIndex: number): number {
+  let depth = 0;
+  let inSingle = false;
+  let inDouble = false;
+  let inBacktick = false;
+
+  for (let i = openIndex; i < source.length; i++) {
+    const ch = source[i];
+
+    if (inSingle) {
+      if (ch === '\\') {
+        i++;
+        continue;
+      }
+      if (ch === "'") inSingle = false;
+      continue;
+    }
+    if (inDouble) {
+      if (ch === '\\') {
+        i++;
+        continue;
+      }
+      if (ch === '"') inDouble = false;
+      continue;
+    }
+    if (inBacktick) {
+      if (ch === '\\') {
+        i++;
+        continue;
+      }
+      if (ch === '`') {
+        inBacktick = false;
+        continue;
+      }
+      // Ignore everything inside template literals (including ${...})
+      continue;
+    }
+
+    if (ch === "'") {
+      inSingle = true;
+      continue;
+    }
+    if (ch === '"') {
+      inDouble = true;
+      continue;
+    }
+    if (ch === '`') {
+      inBacktick = true;
+      continue;
+    }
+
+    if (ch === '{') {
+      depth++;
+      continue;
+    }
+    if (ch === '}') {
+      depth--;
+      if (depth === 0) return i;
+      continue;
+    }
+  }
+  return -1; // not found
+}
+
+// Replace '...' and "..." inside a string, ignoring template literals
+function replaceQuotedStringsIgnoringTemplates(
+  input: string,
+  replacer: (content: string, quote: '"' | "'") => string
+): string {
+  let out = '';
+  let i = 0;
+  let inBacktick = false;
+
+  while (i < input.length) {
+    const ch = input[i];
+
+    if (inBacktick) {
+      // Copy template literal raw (basic: skip to next unescaped backtick)
+      out += ch;
+      if (ch === '\\') {
+        if (i + 1 < input.length) {
+          out += input[i + 1];
+          i += 2;
+          continue;
+        }
+      }
+      if (ch === '`') inBacktick = false;
+      i++;
+      continue;
+    }
+
+    if (ch === '`') {
+      inBacktick = true;
+      out += ch;
+      i++;
+      continue;
+    }
+
+    if (ch === '"' || ch === "'") {
+      const quote = ch as '"' | "'";
+      let j = i + 1;
+      let content = '';
+
+      while (j < input.length) {
+        const c = input[j];
+        if (c === '\\') {
+          if (j + 1 < input.length) {
+            content += c + input[j + 1];
+            j += 2;
+            continue;
+          } else {
+            content += c;
+            j++;
+            continue;
+          }
+        }
+        if (c === quote) {
+          break;
+        }
+        content += c;
+        j++;
+      }
+
+      if (j < input.length && input[j] === quote) {
+        const replaced = replacer(content, quote);
+        out += quote + replaced + quote;
+        i = j + 1;
+        continue;
+      } else {
+        // Unclosed string, just emit current char
+        out += ch;
+        i++;
+        continue;
+      }
+    }
+
+    out += ch;
+    i++;
+  }
+
+  return out;
+}
+
+// Process strings inside JSX expression values: attrName={ ...here... }
+function processExpressionAttributeLiterals(
+  text: string,
+  config: ClassPrefixerConfig,
+  addPrefix: boolean
+): string {
+  const attrAlt = buildAttrNameAlternation(config);
+  const startRe = new RegExp(`${attrAlt}\\s*=\\s*\\{`, 'g');
+
+  let result = '';
+  let lastIndex = 0;
+  let m: RegExpExecArray | null;
+
+  while ((m = startRe.exec(text)) !== null) {
+    const openBraceIndex = startRe.lastIndex - 1; // points to '{'
+    const closeIndex = findMatchingBrace(text, openBraceIndex);
+    if (closeIndex === -1) {
+      // Unbalanced braces; skip this occurrence
+      continue;
+    }
+
+    const before = text.slice(lastIndex, openBraceIndex + 1); // include '{'
+    const body = text.slice(openBraceIndex + 1, closeIndex);
+    const afterClose = closeIndex + 1;
+
+    const transformedBody = replaceQuotedStringsIgnoringTemplates(
+      body,
+      (content) => {
+        return processClasses(
+          content,
+          config.prefix,
+          addPrefix ? config.skipClasses : [],
+          addPrefix
+        );
+      }
+    );
+
+    result += before + transformedBody + '}';
+    lastIndex = afterClose;
+
+    // Move regex index forward to avoid re-matching inside replaced area
+    startRe.lastIndex = afterClose;
+  }
+
+  result += text.slice(lastIndex);
+  return result;
 }
 
 // Główna funkcja przetwarzania dokumentu
@@ -219,13 +395,11 @@ async function processDocument(addPrefix: boolean) {
   }
 }
 
-// Dodaj prefiksy do klas
 function addPrefixToClasses(text: string, config: ClassPrefixerConfig): string {
   const { prefix, skipClasses } = config;
 
-  // Wzorce dla className i class attributes
+  // Direct quoted values
   const patterns = buildPatterns(config);
-
   let result = text;
 
   patterns.forEach((pattern) => {
@@ -240,6 +414,9 @@ function addPrefixToClasses(text: string, config: ClassPrefixerConfig): string {
     });
   });
 
+  // Strings within JSX expressions: className={ ... '...' ... }
+  result = processExpressionAttributeLiterals(result, config, true);
+
   return result;
 }
 
@@ -250,11 +427,8 @@ function removePrefixFromClasses(
 ): string {
   const { prefix } = config;
 
-  const patterns = [
-    /className\s*=\s*["'`{]([^"'`}]*)/g,
-    /\sclass\s*=\s*["']([^"']*)/g,
-  ];
-
+  // Direct quoted values
+  const patterns = buildPatterns(config);
   let result = text;
 
   patterns.forEach((pattern) => {
@@ -263,6 +437,9 @@ function removePrefixFromClasses(
       return match.replace(classes, processedClasses);
     });
   });
+
+  // Strings within JSX expressions: className={ ... '...' ... }
+  result = processExpressionAttributeLiterals(result, config, false);
 
   return result;
 }

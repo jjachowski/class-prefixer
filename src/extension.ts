@@ -1,9 +1,7 @@
 import * as vscode from 'vscode';
 
-// Wspierane rozszerzenia plików
 const SUPPORTED_EXTENSIONS = ['.js', '.jsx', '.ts', '.tsx'];
 
-// Configuration interface
 interface ClassPrefixerConfig {
   prefix: string;
   skipClasses: string[];
@@ -16,7 +14,6 @@ interface ClassPrefixerConfig {
 export function activate(context: vscode.ExtensionContext) {
   console.log('ClassPrefixer is now active!');
 
-  // Komenda dodawania prefiksów
   const addPrefixCommand = vscode.commands.registerCommand(
     'classPrefixer.addPrefix',
     async () => {
@@ -24,7 +21,6 @@ export function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  // Komenda usuwania prefiksów
   const removePrefixCommand = vscode.commands.registerCommand(
     'classPrefixer.removePrefix',
     async () => {
@@ -34,7 +30,6 @@ export function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(addPrefixCommand, removePrefixCommand);
 
-  // Pokazanie statusu w status bar
   const statusBarItem = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Right,
     100
@@ -46,7 +41,6 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(statusBarItem);
 }
 
-// Get configuration
 function getConfig(): ClassPrefixerConfig {
   const config = vscode.workspace.getConfiguration('classPrefixer');
   return {
@@ -59,14 +53,12 @@ function getConfig(): ClassPrefixerConfig {
   };
 }
 
-// Sprawdź czy plik jest obsługiwany
 function isFileSupported(fileName: string): boolean {
   return SUPPORTED_EXTENSIONS.some((ext) =>
     fileName.toLowerCase().endsWith(ext)
   );
 }
 
-// Build patterns from wildcard attribute names like "*ClassName" (direct quoted values only)
 function buildPatternsFromCustom(config: {
   customPatterns: string[];
 }): RegExp[] {
@@ -94,10 +86,7 @@ function buildPatternsFromCustom(config: {
 }
 
 function buildPatterns(config: ClassPrefixerConfig): RegExp[] {
-  const patterns: RegExp[] = [
-    // Default: className="..."/'...'/`...`
-    /className\s*=\s*["'`]([^"'`]*?)["'`]/g,
-  ];
+  const patterns: RegExp[] = [/className\s*=\s*["'`]([^"'`]*?)["'`]/g];
 
   if (config.useRegex) {
     // User-provided regex attribute names for direct quoted values
@@ -160,7 +149,9 @@ function findMatchingBrace(source: string, openIndex: number): number {
         i++;
         continue;
       }
-      if (ch === "'") inSingle = false;
+      if (ch === "'") {
+        inSingle = false;
+      }
       continue;
     }
     if (inDouble) {
@@ -168,7 +159,9 @@ function findMatchingBrace(source: string, openIndex: number): number {
         i++;
         continue;
       }
-      if (ch === '"') inDouble = false;
+      if (ch === '"') {
+        inDouble = false;
+      }
       continue;
     }
     if (inBacktick) {
@@ -203,7 +196,9 @@ function findMatchingBrace(source: string, openIndex: number): number {
     }
     if (ch === '}') {
       depth--;
-      if (depth === 0) return i;
+      if (depth === 0) {
+        return i;
+      }
       continue;
     }
   }
@@ -232,7 +227,9 @@ function replaceQuotedStringsIgnoringTemplates(
           continue;
         }
       }
-      if (ch === '`') inBacktick = false;
+      if (ch === '`') {
+        inBacktick = false;
+      }
       i++;
       continue;
     }
@@ -337,7 +334,6 @@ function processExpressionAttributeLiterals(
   return result;
 }
 
-// Główna funkcja przetwarzania dokumentu
 async function processDocument(addPrefix: boolean) {
   const editor = vscode.window.activeTextEditor;
 
@@ -380,7 +376,6 @@ async function processDocument(addPrefix: boolean) {
       editBuilder.replace(fullRange, processedText);
     });
 
-    // Automatyczne formatowanie jeśli włączone
     if (config.autoFormat) {
       await vscode.commands.executeCommand('editor.action.formatDocument');
     }
@@ -420,7 +415,6 @@ function addPrefixToClasses(text: string, config: ClassPrefixerConfig): string {
   return result;
 }
 
-// Usuń prefiksy z klas
 function removePrefixFromClasses(
   text: string,
   config: ClassPrefixerConfig
@@ -444,35 +438,29 @@ function removePrefixFromClasses(
   return result;
 }
 
-// Przetwórz pojedyncze klasy
 function processClasses(
   classString: string,
   prefix: string,
   skipClasses: string[],
   addPrefix: boolean
 ): string {
-  // Rozdziel klasy (obsługa wielu klas)
   const classes = classString.split(/\s+/).filter((c) => c.length > 0);
 
   const processedClasses = classes.map((className) => {
-    // Pomiń puste lub już prefixowane (jeśli dodajemy)
     if (!className) {
       return className;
     }
 
     if (addPrefix) {
-      // Nie dodawaj jeśli już ma prefiks
       if (className.startsWith(prefix)) {
         return className;
       }
-      // Nie dodawaj do klas na liście skip
       if (skipClasses.includes(className)) {
         return className;
       }
 
       return prefix + className;
     } else {
-      // Usuń prefiks jeśli istnieje
       if (className.startsWith(prefix)) {
         return className.substring(prefix.length);
       }

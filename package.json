@@ -1,11 +1,12 @@
 {
   "name": "classprefixer",
   "displayName": "ClassPrefixer",
-  "description": "Adds specified prefix to every class in specified  class string",
-  "version": "0.0.1",
+  "description": "Adds specified prefix to every class in specified class string",
+  "version": "1.0.0",
   "publisher": "Jakub Jachowski",
+  "icon": "icon.png",
   "engines": {
-    "vscode": "^1.103.0"
+    "vscode": "^1.102.0"
   },
   "categories": [
     "Formatters"
@@ -22,10 +23,38 @@
       {
         "command": "classPrefixer.addPrefix",
         "title": "Add Class Prefix",
-        "category": "ClassPrefixer",
-        "when": "resourceExtname =~ /\\.(jsx?|tsx?)$/"
+        "category": "ClassPrefixer"
+      },
+      {
+        "command": "classPrefixer.removePrefix",
+        "title": "Remove Class Prefix",
+        "category": "ClassPrefixer"
       }
     ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "classPrefixer.addPrefix",
+          "when": "editorLangId =~ /^(javascript|javascriptreact|typescript|typescriptreact)$/"
+        },
+        {
+          "command": "classPrefixer.removePrefix",
+          "when": "editorLangId =~ /^(javascript|javascriptreact|typescript|typescriptreact)$/"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "classPrefixer.addPrefix",
+          "group": "navigation@1",
+          "when": "editorTextFocus && editorLangId =~ /^(javascript|javascriptreact|typescript|typescriptreact)$/"
+        },
+        {
+          "command": "classPrefixer.removePrefix",
+          "group": "navigation@2",
+          "when": "editorTextFocus && editorLangId =~ /^(javascript|javascriptreact|typescript|typescriptreact)$/"
+        }
+      ]
+    },
     "configuration": {
       "title": "ClassPrefixer",
       "properties": {
@@ -36,6 +65,9 @@
         },
         "classPrefixer.skipClasses": {
           "type": "array",
+          "items": {
+            "type": "string"
+          },
           "default": [],
           "description": "List of classes to skip"
         },
@@ -46,6 +78,9 @@
         },
         "classPrefixer.customPatterns": {
           "type": "array",
+          "items": {
+            "type": "string"
+          },
           "default": [
             "*ClassName"
           ],
@@ -54,10 +89,13 @@
         "classPrefixer.useRegex": {
           "type": "boolean",
           "default": false,
-          "description": "Enable regex patterns in customPatterns (when false, * is treated as wildcard)"
+          "description": "Enable customRegexPatterns (when false, customPatterns are used with '*' wildcard)"
         },
         "classPrefixer.customRegexPatterns": {
           "type": "array",
+          "items": {
+            "type": "string"
+          },
           "default": [
             "\\w+ClassName"
           ],
@@ -72,7 +110,8 @@
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "test": "vscode-test",
+    "package": "vsce package"
   },
   "devDependencies": {
     "@types/vscode": "^1.102.0",
@@ -80,9 +119,10 @@
     "@types/node": "22.x",
     "@typescript-eslint/eslint-plugin": "^8.39.0",
     "@typescript-eslint/parser": "^8.39.0",
+    "@vscode/test-cli": "^0.0.11",
+    "@vscode/test-electron": "^2.5.2",
     "eslint": "^9.32.0",
     "typescript": "^5.9.2",
-    "@vscode/test-cli": "^0.0.11",
-    "@vscode/test-electron": "^2.5.2"
+    "vsce": "^3.0.0"
   }
 }

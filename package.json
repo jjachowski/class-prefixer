@@ -1,0 +1,87 @@
+{
+  "name": "classprefixer",
+  "displayName": "ClassPrefixer",
+  "description": "Adds specified prefix to every class in specified  class string",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.103.0"
+  },
+  "categories": [
+    "Formatters"
+  ],
+  "activationEvents": [
+    "onLanguage:javascript",
+    "onLanguage:javascriptreact",
+    "onLanguage:typescript",
+    "onLanguage:typescriptreact"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "classPrefixer.addPrefix",
+        "title": "Add Class Prefix",
+        "category": "ClassPrefixer",
+        "when": "resourceExtname =~ /\\.(jsx?|tsx?)$/"
+      }
+    ],
+    "configuration": {
+      "title": "ClassPrefixer",
+      "properties": {
+        "classPrefixer.prefix": {
+          "type": "string",
+          "default": "ssp:",
+          "description": "Default prefix"
+        },
+        "classPrefixer.skipClasses": {
+          "type": "array",
+          "default": [],
+          "description": "List of classes to skip"
+        },
+        "classPrefixer.autoFormat": {
+          "type": "boolean",
+          "default": true,
+          "description": "Format file after prefixing"
+        },
+        "classPrefixer.customPatterns": {
+          "type": "array",
+          "default": [
+            "*ClassName"
+          ],
+          "description": "Custom attribute patterns to process (use * as wildcard)"
+        },
+        "classPrefixer.useRegex": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable regex patterns in customPatterns (when false, * is treated as wildcard)"
+        },
+        "classPrefixer.customRegexPatterns": {
+          "type": "array",
+          "default": [
+            "\\w+ClassName"
+          ],
+          "description": "Custom regex patterns for attribute names (only when useRegex is true)"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.102.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "@typescript-eslint/eslint-plugin": "^8.39.0",
+    "@typescript-eslint/parser": "^8.39.0",
+    "eslint": "^9.32.0",
+    "typescript": "^5.9.2",
+    "@vscode/test-cli": "^0.0.11",
+    "@vscode/test-electron": "^2.5.2"
+  }
+}
